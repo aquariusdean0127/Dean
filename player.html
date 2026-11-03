@@ -704,6 +704,28 @@
   .player-feedback .fb-arrows { order: 2; }
   .player-feedback.fb-reverse .fb-arrows { order: 1; }
   .player-feedback.fb-reverse .fb-time   { order: 2; }
+
+    /* ═══════════ video compositing: kill seek-frame overlap ═══════════ */
+  .player video {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .seek-mask {
+  position:absolute; inset:0;
+  background:#000;
+  z-index:2;
+  pointer-events:none;
+  opacity:0;
+  transition: opacity .12s ease;   /* fade-out only */
+}
+.seek-mask.show {
+  opacity:1;
+  transition: none;                /* instant fade-in */
+}
 </style>
 </head>
 <body>
@@ -711,6 +733,7 @@
 <div class="player" id="playerRoot">
   <div class="player-stage" id="playerStage">
     <video id="video" playsinline preload="metadata" crossorigin="anonymous"></video>
+    <div class="seek-mask" id="seekMask"></div>
 
     <div class="caption-overlay" id="captionOverlay" hidden></div>
 
@@ -1199,7 +1222,20 @@ function doFrameSeek(direction) {
   const seconds = seekState[key].count * 10;
   const delta   = direction * 10;
   const target  = Math.max(0, Math.min(video.duration, video.currentTime + delta));
+
+  const mask = document.getElementById("seekMask");
+  mask.classList.add("show");
+
   video.currentTime = target;
+
+  clearTimeout(doFrameSeek._maskTimer);
+  if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+    video.requestVideoFrameCallback(() => {
+      mask.classList.remove("show");
+    });
+  } else {
+    doFrameSeek._maskTimer = setTimeout(() => mask.classList.remove("show"), 150);
+  }
 
   showSeekFeedback(direction, seconds);
   animateSeekIcon(direction);
