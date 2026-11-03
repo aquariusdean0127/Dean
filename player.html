@@ -668,6 +668,42 @@
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
   }
+
+    /* ═══════════ premium mode: no hover / active feedback ═══════════ */
+  .player-bigplay:hover,
+  .player-bigplay:active { background:rgba(0,0,0,.5); border-color:rgba(255,255,255,.7); transform:none; }
+
+  .frame-nav-btn:hover { background:rgba(0,0,0,.55); border-color:rgba(255,255,255,.35); }
+  .frame-nav-btn:active { transform:translateY(-50%); }
+
+  .frame-seek-btn:hover { background:rgba(0,0,0,.5); border-color:rgba(255,255,255,.5); }
+  .frame-seek-btn:active { transform:none; }
+
+  .icon-btn:hover,
+  .icon-btn:active { background:rgba(255,255,255,.08); transform:none; }
+
+  .menu-btn:hover { background:rgba(255,255,255,.08); }
+  .menu-list button:hover { background:transparent; }
+  .menu-list button.active:hover { background:var(--accent); }
+
+  .btn:hover { background:var(--card-2); border-color:var(--line); }
+  .btn-primary:hover { background:var(--accent); border-color:var(--accent); }
+
+  .drawer-close:hover { background:rgba(255,255,255,.06); }
+  .drawer-ep-nav-btn:hover:not(:disabled) { background:#1e1e25; border-color:#2a2a33; }
+  .drawer-ep-btn:hover { background:#1e1e25; border-color:#2a2a33; }
+  .cap-settings-close:hover { background:rgba(255,255,255,.06); }
+
+  /* seek bar: keep scrubbing feedback, remove hover-only growth */
+  .seek:not(.scrubbing):hover .seek-track { height:5px; }
+  .seek:not(.scrubbing):hover .seek-knob { transform:translate(-50%,-50%) scale(0); }
+  .seek:not(.scrubbing):hover .seek-tooltip { opacity:0; }
+
+    /* ═══════════ feedback pill: arrows flip per direction ═══════════ */
+  .player-feedback .fb-time   { order: 1; }
+  .player-feedback .fb-arrows { order: 2; }
+  .player-feedback.fb-reverse .fb-arrows { order: 1; }
+  .player-feedback.fb-reverse .fb-time   { order: 2; }
 </style>
 </head>
 <body>
@@ -1078,6 +1114,7 @@ function formatTime(sec) {
 function showFeedback(text) {
   fbTime.textContent = text;
   fbArrows.hidden = true;
+  playerFeedback.classList.remove("fb-reverse");
   playerFeedback.classList.add("show");
   clearTimeout(showFeedback._t);
   clearTimeout(seekState.hideTimer);
@@ -1121,6 +1158,7 @@ function showSeekFeedback(direction, seconds) {
                      + "<span>" + chev + "</span>"
                      + "<span>" + chev + "</span>";
   fbArrows.hidden = !seekState.buffering;
+  playerFeedback.classList.toggle("fb-reverse", direction < 0);   /* ← NEW */
   playerFeedback.classList.add("show");
   clearTimeout(showFeedback._t);
   clearTimeout(seekState.hideTimer);
