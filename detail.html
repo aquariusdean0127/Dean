@@ -971,16 +971,28 @@ function imgUrl(v) {
 /* ═══════════ AD GATE (direct-link ad) ═══════════ */
 const AD_URL = "https://uplcm.com/4/12109724";
 const AD_UNLOCK_PREFIX = "adUnlocked:";
+const AD_UNLOCK_TTL = 24 * 60 * 60 * 1000; /* 24 hours in ms */
 
-let adPendingKey = null;
-let adWatcherBound = false;
-
+/* Returns true if this key was unlocked less than 24h ago */
 function isAdUnlocked(key) {
-  try { return sessionStorage.getItem(AD_UNLOCK_PREFIX + key) === "1"; }
-  catch (_) { return false; }
+  try {
+    const raw = localStorage.getItem(AD_UNLOCK_PREFIX + key);
+    if (!raw) return false;
+    const ts = Number(raw);
+    if (!ts || Number.isNaN(ts)) return false;
+    if (Date.now() - ts >= AD_UNLOCK_TTL) {
+      localStorage.removeItem(AD_UNLOCK_PREFIX + key);
+      return false;
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
+
+/* Persist unlock for 24h (localStorage survives tab/browser close) */
 function unlockAd(key) {
-  try { sessionStorage.setItem(AD_UNLOCK_PREFIX + key, "1"); } catch (_) {}
+  try { localStorage.setItem(AD_UNLOCK_PREFIX + key, String(Date.now())); } catch (_) {}
 }
 
 /* One "ad token" per movie / per season / per provider */
@@ -1004,33 +1016,24 @@ function handlePlay(kind, extra) {
 }
 
 function requestAd(key) {
-  adPendingKey = key;
-  bindAdWatcher();
   let win = null;
   try { win = window.open(AD_URL, "_blank"); } catch (_) {}
-  if (win) {
-    try { win.opener = null; } catch (_) {}
-  } else {
-    adPendingKey = null;
+
+  if (!win) {
     showToast("Please allow pop-ups so the ad can open, then tap again.");
+    return;
   }
-}
 
-function bindAdWatcher() {
-  if (adWatcherBound) return;
-  adWatcherBound = true;
-  document.addEventListener("visibilitychange", onAdReturn);
-  window.addEventListener("focus", onAdReturn);
-}
+  try { win.opener = null; } catch (_) {}
 
-/* User came back from the ad tab → unlock the button */
-function onAdReturn() {
-  if (!adPendingKey) return;
-  if (document.visibilityState === "hidden") return;
-  const key = adPendingKey;
-  adPendingKey = null;
+  /* Unlock immediately — the play link stays valid for 24h
+     even if the user closes the ad tab, closes the browser,
+     or never comes back to this page. */
   unlockAd(key);
+
+  /* Re-render so the button instantly flips to "Play" */
   render();
+  showToast("Ad opened — you can play now. Unlocked for 24 hours.");
 }
 
 function showToast(msg) {
