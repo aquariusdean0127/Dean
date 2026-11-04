@@ -998,6 +998,7 @@ const PROXY_URL = location.origin;
 const BASE = "https://officialmoviebox.com";
 const HLS_CDN = "https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js";
 
+const MAX_QUALITY = 720;   // hard cap to keep bandwidth under Railway trial limits
 const MAX_STREAM_ATTEMPTS = 8;
 const MAX_API_REFRESHES = 2;
 const ATTEMPT_TIMEOUT_MS = 15000;
@@ -1252,6 +1253,10 @@ function setRetryStatus(text, cls) {
 /* ═══════════ QUALITY PICKER — default 480p ═══════════ */
 function pickStreamIndex(streams, preferredQuality) {
   if (!streams.length) return 0;
+
+  if (preferredQuality != null && preferredQuality > MAX_QUALITY) {
+    preferredQuality = MAX_QUALITY;
+  }
 
   if (preferredQuality != null) {
     const exact = streams.findIndex(s => parseInt(s.quality, 10) === preferredQuality);
@@ -1680,7 +1685,19 @@ function normalizeStreams(data, pageReferer) {
     return bi - ai;
   });
 
-  return { streams, signCookie };
+  // ── cap quality to MAX_QUALITY so the proxy never carries 1080p / 4K ──
+  let capped = streams.filter(s => {
+    const q = parseInt(s.quality, 10);
+    return isNaN(q) || q <= MAX_QUALITY;   // keep "Auto" and any unparsable label
+  });
+
+  // If every stream is above the cap, keep only the lowest-quality one
+  // (streams are sorted descending, so the last element is the smallest).
+  if (capped.length === 0 && streams.length) {
+    capped = [streams[streams.length - 1]];
+  }
+
+  return { streams: capped, signCookie };
 }
 
 /* ═══════════ PLAYBACK CONTROLLER ═══════════ */
