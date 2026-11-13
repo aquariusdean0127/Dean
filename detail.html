@@ -77,25 +77,25 @@
   body.has-footer .page { padding-bottom: 160px; }
 
   /* ═══════════ AD SLOT ═══════════ */
-.ad-slot {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 14px 0 6px;
-  margin-bottom: 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  min-height: 1px;
-}
-.ad-slot::-webkit-scrollbar { display: none; }
-.ad-slot > div { max-width: 100%; }
-.ad-slot iframe,
-.ad-slot img { max-width: 100%; height: auto; }
-@media (max-width: 720px) {
-  .ad-slot { padding: 10px 0 2px; margin-bottom: 6px; }
-}
+  .ad-slot {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 14px 0 6px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    min-height: 1px;
+  }
+  .ad-slot::-webkit-scrollbar { display: none; }
+  .ad-slot > div { max-width: 100%; }
+  .ad-slot iframe,
+  .ad-slot img { max-width: 100%; height: auto; }
+  @media (max-width: 720px) {
+    .ad-slot { padding: 10px 0 2px; margin-bottom: 6px; }
+  }
 
   /* ═══════════ TOPBAR ═══════════ */
   .topbar {
@@ -834,7 +834,7 @@
 <div class="bg-overlay"></div>
 
 <div class="page">
-    <div class="topbar">
+  <div class="topbar">
     <button class="back-btn" id="backBtn" title="Back">←</button>
     <h1 id="pageTitle">Dean Tv Details</h1>
   </div>
@@ -1023,7 +1023,6 @@ const AD_URL = "https://uplcm.com/4/12109724";
 const AD_UNLOCK_PREFIX = "adUnlocked:";
 const AD_UNLOCK_TTL = 24 * 60 * 60 * 1000; /* 24 hours in ms */
 
-/* Returns true if this key was unlocked less than 24h ago */
 function isAdUnlocked(key) {
   try {
     const raw = localStorage.getItem(AD_UNLOCK_PREFIX + key);
@@ -1040,12 +1039,10 @@ function isAdUnlocked(key) {
   }
 }
 
-/* Persist unlock for 24h (localStorage survives tab/browser close) */
 function unlockAd(key) {
   try { localStorage.setItem(AD_UNLOCK_PREFIX + key, String(Date.now())); } catch (_) {}
 }
 
-/* One "ad token" per movie / per season / per provider */
 function getPlayKey(kind, extra) {
   if (kind === "moviebox") {
     const m = state.moviebox;
@@ -1057,7 +1054,6 @@ function getPlayKey(kind, extra) {
   return "srv|" + (extra || "");
 }
 
-/* Entry point for every play action */
 function handlePlay(kind, extra) {
   const key = getPlayKey(kind, extra);
   if (!isAdUnlocked(key)) { requestAd(key); return; }
@@ -1076,12 +1072,7 @@ function requestAd(key) {
 
   try { win.opener = null; } catch (_) {}
 
-  /* Unlock immediately — the play link stays valid for 24h
-     even if the user closes the ad tab, closes the browser,
-     or never comes back to this page. */
   unlockAd(key);
-
-  /* Re-render so the button instantly flips to "Play" */
   render();
   showToast("Ad opened — you can play now. Unlocked for 24 hours.");
 }
@@ -1891,7 +1882,6 @@ function renderHero() {
     ? `<img src="${escapeHtml(h.backdrop || h.poster)}" alt="" onerror="this.style.display='none'">`
     : "";
 
-  // Actions: Play (if moviebox available) + Trailer
   const m = state.moviebox;
   const hasPlay = !!m.data;
   const hasTrailer = !!state.hero.trailerKey;
@@ -2186,7 +2176,6 @@ function bindEvents() {
   const retryAll = document.getElementById("retryAll");
   if (retryAll) retryAll.addEventListener("click", () => boot(true));
 
-  // Cast cards → open person modal
   document.querySelectorAll(".cast-card[data-actor-id]").forEach(card => {
     const open = () => {
       const id = card.dataset.actorId;
