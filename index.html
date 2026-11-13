@@ -154,6 +154,22 @@
   .show-all-btn:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.28);color:#fff}
   .show-all-btn:active{transform:scale(.96)}
 
+  /* ═══ GENRE GROUP HEADING ═══ */
+  .group-head{
+    display:flex;align-items:center;gap:14px;
+    margin:46px 0 4px;
+    font-size:12.5px;font-weight:800;letter-spacing:1.6px;
+    text-transform:uppercase;color:#8a8a94;
+  }
+  .group-head:first-child{margin-top:0}
+  .group-head::after{
+    content:"";flex:1;height:1px;
+    background:linear-gradient(90deg,rgba(255,255,255,.14),transparent);
+  }
+  @media (max-width:640px){
+    .group-head{margin:32px 0 2px;font-size:11px;letter-spacing:1.3px;gap:10px}
+  }
+
   /* ═══ HERO SLIDESHOW ═══ */
   .hero-slideshow {
     position: relative;
@@ -1048,11 +1064,48 @@ const TMDB_LANG = "en-US";
 
 const HISTORY_KEY = "watchHistory";
 
-const BROWSE_ROWS = [
+/* Curated rows shown first on the browse page */
+const BASE_ROWS = [
   { key: "trending_movies", title: "Trending Movies",  endpoint: "/trending/movie/week", mediaType: "movie", hint: "This week" },
   { key: "trending_tv",     title: "Trending TV Shows", endpoint: "/trending/tv/week",    mediaType: "tv",    hint: "This week" },
   { key: "new_releases",    title: "New Releases",      endpoint: "/movie/now_playing",   mediaType: "movie", hint: "In theaters" },
   { key: "popular_tv",      title: "Popular TV",        endpoint: "/tv/popular",          mediaType: "tv",    hint: "All time" },
+];
+
+/* Genre rows — built from the genre IDs already defined in GENRES */
+const GENRE_ROWS = [
+  // Movies
+  { mediaType: "movie", genreId: 28,    label: "Action" },
+  { mediaType: "movie", genreId: 35,    label: "Comedy" },
+  { mediaType: "movie", genreId: 18,    label: "Drama" },
+  { mediaType: "movie", genreId: 27,    label: "Horror" },
+  { mediaType: "movie", genreId: 878,   label: "Sci-Fi" },
+  { mediaType: "movie", genreId: 10749, label: "Romance" },
+  // TV
+  { mediaType: "tv",    genreId: 10759, label: "Action & Adventure" },
+  { mediaType: "tv",    genreId: 35,    label: "Comedy" },
+  { mediaType: "tv",    genreId: 18,    label: "Drama" },
+  { mediaType: "tv",    genreId: 80,    label: "Crime" },
+  { mediaType: "tv",    genreId: 9648,  label: "Mystery" },
+  { mediaType: "tv",    genreId: 10765, label: "Sci-Fi & Fantasy" },
+];
+
+const BROWSE_ROWS = [
+  ...BASE_ROWS,
+  ...GENRE_ROWS.map(g => ({
+    key: `${g.mediaType}_genre_${g.genreId}`,
+    title: `${g.label} ${g.mediaType === "movie" ? "Movies" : "TV Shows"}`,
+    endpoint: `/discover/${g.mediaType}`,
+    mediaType: g.mediaType,
+    hint: "By genre",
+    group: g.mediaType === "movie" ? "Movies by Genre" : "TV Shows by Genre",
+    params: {
+      with_genres: String(g.genreId),
+      sort_by: "popularity.desc",
+      include_adult: "false",
+      "vote_count.gte": "20",
+    },
+  })),
 ];
 
 const SUGGEST_LIMIT_TITLES = 6;
@@ -1139,7 +1192,7 @@ const S = {
     currentPage: 1, lastMs: 0, abort: null, returnView: "browse",
   },
   person: { id: null, data: null, credits: [], loading: false, abort: null },
-  rowFull: { key: null, title: "", endpoint: "", mediaType: "", page: 0, hasMore: true, loading: false, items: [], seenIds: new Set(), abort: null, initialized: false },
+  rowFull: { key: null, title: "", endpoint: "", mediaType: "", params: {}, page: 0, hasMore: true, loading: false, items: [], seenIds: new Set(), abort: null, initialized: false },
   suggest: { items: [], activeIdx: -1, abort: null, timer: null, active: false },
   hero: { slides: [], activeIdx: 0, timer: null, loaded: false },
   nav: { open: false },
@@ -1551,13 +1604,32 @@ function resumeFromHistory(entry) {
   }
 }
 
-async function loadBrowseRows() {
+/* Lazy-load rows as they approach the viewport */
+const browseRowObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    const idx = Number(entry.target.dataset.rowIdx);
+    browseRowObserver.unobserve(entry.target);
+    loadBrowseRow(idx);
+  }
+}, { rootMargin: "600px 0px" });
+
+function loadBrowseRows() {
   const rowsWrap = document.getElementById("browseRows");
-  rowsWrap.innerHTML = BROWSE_ROWS.map((row, i) => `
+
+  let html = "";
+  let lastGroup = null;
+
+  BROWSE_ROWS.forEach((row, i) => {
+    if (row.group && row.group !== lastGroup) {
+      html += `<div class="group-head">${escapeHtml(row.group)}</div>`;
+      lastGroup = row.group;
+    }
+    html += `
     <div class="section-head">
       <h2>${escapeHtml(row.title)}</h2>
       <div class="section-actions">
-        <span class="hint" id="hint-${i}">Loading…</span>
+        <span class="hint" id="hint-${i}">${escapeHtml(row.hint || "")}</span>
         <button class="show-all-btn" data-row="${i}">Show all →</button>
       </div>
     </div>
@@ -1569,31 +1641,50 @@ async function loadBrowseRows() {
       <button class="row-scroll-btn right" type="button" aria-label="Scroll right">
         <svg viewBox="0 0 24 24"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
       </button>
-    </div>
-  `).join("");
+    </div>`;
+  });
+
+  rowsWrap.innerHTML = html;
+
   rowsWrap.querySelectorAll(".show-all-btn").forEach(btn => {
     btn.addEventListener("click", () => openRowFull(Number(btn.dataset.row)));
   });
-  await Promise.all(BROWSE_ROWS.map(async (row, i) => {
-    const container = document.getElementById("row-" + i);
-    const hint = document.getElementById("hint-" + i);
-    const rowWrap = document.getElementById("rowwrap-" + i);
-    try {
-      const data = await tmdbFetch(row.endpoint, { page: 1 });
-      const items = (data.results || [])
-        .filter(r => r && r.poster_path && (r.media_type === row.mediaType || (!r.media_type && row.mediaType)))
-        .map(mapTmdbTitle).filter(it => it.title);
-      if (!items.length) { container.innerHTML = '<div class="empty">Nothing to show.</div>'; hint.textContent = ""; return; }
-      hint.textContent = items.length + " titles";
-      container.innerHTML = items.map(it => titleCardHtml(it)).join("");
-      bindTitleCards(container);
-      attachRowScrollButtons(rowWrap, container);
-    } catch (e) {
-      console.error("[browse row]", row.key, e);
-      container.innerHTML = '<div class="empty">Failed to load.</div>';
+
+  rowsWrap.querySelectorAll(".row-wrap").forEach((el, i) => {
+    el.dataset.rowIdx = i;
+    browseRowObserver.observe(el);
+  });
+}
+
+async function loadBrowseRow(i) {
+  const row = BROWSE_ROWS[i];
+  if (!row) return;
+  const container = document.getElementById("row-" + i);
+  const hint = document.getElementById("hint-" + i);
+  const rowWrap = document.getElementById("rowwrap-" + i);
+  if (!container || container.dataset.loaded === "1") return;
+  container.dataset.loaded = "1";
+
+  try {
+    const data = await tmdbFetch(row.endpoint, { page: 1, ...(row.params || {}) });
+    const items = (data.results || [])
+      .filter(r => r && r.poster_path && (r.media_type === row.mediaType || (!r.media_type && row.mediaType)))
+      .map(mapTmdbTitle).filter(it => it.title);
+
+    if (!items.length) {
+      container.innerHTML = '<div class="empty">Nothing to show.</div>';
       hint.textContent = "";
+      return;
     }
-  }));
+    hint.textContent = items.length + " titles";
+    container.innerHTML = items.map(it => titleCardHtml(it)).join("");
+    bindTitleCards(container);
+    attachRowScrollButtons(rowWrap, container);
+  } catch (e) {
+    console.error("[browse row]", row.key, e);
+    container.innerHTML = '<div class="empty">Failed to load.</div>';
+    hint.textContent = "";
+  }
 }
 
 async function openRowFull(rowIdx) {
@@ -1603,6 +1694,7 @@ async function openRowFull(rowIdx) {
   S.rowFull.abort = new AbortController();
   S.rowFull.key = row.key; S.rowFull.title = row.title;
   S.rowFull.endpoint = row.endpoint; S.rowFull.mediaType = row.mediaType;
+  S.rowFull.params = row.params || {};
   S.rowFull.page = 0; S.rowFull.hasMore = true; S.rowFull.loading = false;
   S.rowFull.items = []; S.rowFull.seenIds = new Set(); S.rowFull.initialized = false;
   document.getElementById("rowFullTitle").textContent = row.title;
@@ -1622,7 +1714,7 @@ async function loadRowFullPage(n) {
   if (n > 1) document.getElementById("rowFullLoading").hidden = false;
   const signal = S.rowFull.abort.signal;
   try {
-    const data = await tmdbFetch(S.rowFull.endpoint, { page: n }, signal);
+    const data = await tmdbFetch(S.rowFull.endpoint, { page: n, ...(S.rowFull.params || {}) }, signal);
     if (signal.aborted) return;
     S.rowFull.totalPages = data.total_pages || 0;
     S.rowFull.page = n;
